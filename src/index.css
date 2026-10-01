@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #FFF9EE;
+  --color-primary: #087A45;
+  --color-soft-green: #E8F6EE;
+  --color-text-main: #17352A;
+  --color-text-muted: #718079;
+  --color-gold: #D6A84F;
+  --color-soft-yellow: #FFF0B8;
+  --color-blue-accent: #BFE4F7;
+  --color-purple-accent: #D9C8F2;
+  --color-orange-accent: #FFD0A3;
+  --color-pink-accent: #F6C5D8;
+  --color-border-soft: #EBEAE2;
+}
+
+:root {
+  --bg-cream: #FFF9EE;
+  --primary: var(--color-primary);
+  --soft-green: var(--color-soft-green);
+  --text-main: var(--color-text-main);
+  --text-muted: var(--color-text-muted);
+  --gold: var(--color-gold);
+  --soft-yellow: var(--color-soft-yellow);
+  --blue-accent: var(--color-blue-accent);
+  --purple-accent: var(--color-purple-accent);
+  --orange-accent: var(--color-orange-accent);
+  --pink-accent: var(--color-pink-accent);
+  --border-soft: var(--color-border-soft);
+  --soft-blue: var(--color-blue-accent);
+  --sky: var(--color-blue-accent);
+  --bg-cream-secondary: var(--color-soft-yellow);
+  --color-cream: var(--color-cream);
+}
+
+body {
+  background-color: var(--bg-cream);
+  color: var(--text-main);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.card-soft {
+  background-color: #FFFFFF;
+  border-radius: 20px;
+  box-shadow: 0 4px 18px rgba(23, 53, 42, 0.03);
+  border: 1px solid var(--border-soft);
+}
+
+.hero-card {
+  background: linear-gradient(135deg, #FFFFFF, #F1FAF4);
+  border-radius: 24px;
+  box-shadow: 0 8px 30px rgba(23, 53, 42, 0.03);
+  border: 1px solid rgba(8, 122, 69, 0.1);
+}
