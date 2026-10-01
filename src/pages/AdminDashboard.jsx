@@ -261,23 +261,21 @@ export default function AdminDashboard({ session }) {
         ) : activeTab === 'teacher' ? (
           <div className="animate-fade-in space-y-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-[var(--text-main)]">Teacher Profile</h2>
-              {teachers.length === 0 && (
-                <button 
-                  onClick={() => setIsCreateTeacherModalOpen(true)}
-                  className="bg-[var(--primary)] text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-[#066036] transition-colors flex items-center"
-                >
-                  <UserPlus className="w-4 h-4 mr-2" /> Add Teacher
-                </button>
-              )}
+              <h2 className="text-2xl font-bold text-[var(--text-main)]">Teachers</h2>
+              <button 
+                onClick={() => setIsCreateTeacherModalOpen(true)}
+                className="bg-[var(--primary)] text-white px-4 py-2.5 rounded-xl font-bold text-sm hover:bg-[#066036] transition-colors flex items-center"
+              >
+                <UserPlus className="w-4 h-4 mr-2" /> Add Teacher
+              </button>
             </div>
 
-            {/* Teacher Profile */}
-            <div className="card-soft border-0 border-[var(--border-soft)] overflow-hidden">
+            {/* Teachers List */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {loading ? (
-                <p className="text-gray-500 font-medium p-8 text-center">Loading...</p>
+                <p className="text-gray-500 font-medium p-8 text-center col-span-full">Loading...</p>
               ) : teachers.length === 0 ? (
-                <div className="text-center py-16 px-4">
+                <div className="text-center py-16 px-4 col-span-full card-soft border-0">
                   <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-lg font-bold text-[var(--text-main)] mb-1">No teachers yet</h3>
                   <p className="text-[var(--text-muted)] mb-4">Add your first teacher to start setting up classes.</p>
@@ -289,44 +287,52 @@ export default function AdminDashboard({ session }) {
                   </button>
                 </div>
               ) : (
-                <div className="p-8">
-                  <div className="flex justify-between items-start mb-8">
+                teachers.map((teacher) => (
+                  <div key={teacher.id} className="card-soft border-0 border-[var(--border-soft)] overflow-hidden p-5 flex flex-col justify-between">
                     <div>
-                      <h3 className="text-2xl font-extrabold text-[var(--text-main)]">{teachers[0].full_name}</h3>
-                      <p className="text-[var(--text-muted)] font-medium text-lg mt-1">@{teachers[0].email.replace('@dha-im.app', '')}</p>
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="text-lg font-bold text-[var(--text-main)]">{teacher.full_name}</h3>
+                          <p className="text-[var(--text-muted)] font-medium text-sm mt-0.5">@{teacher.email.replace('@dha-im.app', '')}</p>
+                        </div>
+                        <div className="flex items-center space-x-1.5 bg-[var(--soft-blue)] px-2.5 py-1 rounded-full">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]"></span>
+                          <span className="text-xs font-bold text-[var(--primary)]">Active</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex space-x-6 mb-4 border-t border-[var(--border-soft)] pt-4 mt-2">
+                        <div>
+                          <p className="text-xl font-bold text-[var(--text-main)]">
+                             {studentsData.filter(s => s.teacher_id === teacher.id).length}
+                          </p>
+                          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mt-0.5">Students</p>
+                        </div>
+                        <div>
+                          <p className="text-xl font-bold text-[var(--text-main)]">
+                             {activitiesData.filter(a => a.teacher_id === teacher.id).length}
+                          </p>
+                          <p className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mt-0.5">Activities</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2 bg-[var(--soft-blue)] px-4 py-2 rounded-full">
-                      <span className="w-2 h-2 rounded-full bg-[var(--primary)]"></span>
-                      <span className="text-sm font-bold text-[var(--primary)]">Active</span>
+                    
+                    <div className="flex space-x-2 mt-auto">
+                      <button 
+                        onClick={() => handleEditClick(teacher)}
+                        className="flex-1 bg-[var(--bg-cream)] text-[var(--text-main)] py-2 rounded-lg font-bold text-sm hover:bg-[#E7ECE9] border border-[var(--border-soft)] transition-colors flex items-center justify-center"
+                      >
+                        <Edit2 className="w-3.5 h-3.5 mr-1.5" /> Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteTeacher(teacher.id)}
+                        className="flex-1 text-red-600 py-2 rounded-lg font-bold text-sm hover:bg-red-50 transition-colors flex items-center justify-center border border-transparent hover:border-red-100"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="flex space-x-8 mb-8 border-t border-b border-[var(--border-soft)] py-6">
-                    <div>
-                      <p className="text-3xl font-bold text-[var(--text-main)]">{totalStudents}</p>
-                      <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mt-1">Students</p>
-                    </div>
-                    <div>
-                      <p className="text-3xl font-bold text-[var(--text-main)]">{totalActivities}</p>
-                      <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mt-1">Activities</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-3">
-                    <button 
-                      onClick={() => handleEditClick(teachers[0])}
-                      className="bg-[var(--bg-cream)] text-[var(--text-main)] px-6 py-3 rounded-xl font-bold text-sm hover:bg-[#E7ECE9] border border-[var(--border-soft)] transition-colors flex items-center"
-                    >
-                      <Edit2 className="w-4 h-4 mr-2" /> Edit Teacher
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteTeacher(teachers[0].id)}
-                      className="text-red-600 px-6 py-3 rounded-xl font-bold text-sm hover:bg-red-50 transition-colors flex items-center"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" /> Delete
-                    </button>
-                  </div>
-                </div>
+                ))
               )}
             </div>
           </div>
@@ -341,7 +347,7 @@ export default function AdminDashboard({ session }) {
                       <span className="text-sm font-bold text-[var(--text-muted)] w-6">#{idx + 1}</span>
                       <div>
                         <p className="font-semibold text-lg text-[var(--text-main)]">{student.full_name}</p>
-                        <p className="text-sm font-medium text-[var(--text-muted)]">Roll No. {student.roll_no || '-'}</p>
+                        <p className="text-sm font-medium text-[var(--text-muted)]">Roll No. {student.roll_no || '-'} • Teacher: {teachers.find(t => t.id === student.teacher_id)?.full_name || 'Unknown'}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -367,7 +373,7 @@ export default function AdminDashboard({ session }) {
                       <div>
                         <p className="font-semibold text-lg text-[var(--text-main)]">{act.name}</p>
                         <p className="text-sm font-medium text-[var(--text-muted)] mt-1 capitalize">
-                          {act.options?.type === 'compound' ? 'Compound Activity' : 'Single Select'}
+                          {act.options?.type === 'compound' ? 'Compound Activity' : 'Single Select'} • Teacher: {teachers.find(t => t.id === act.teacher_id)?.full_name || 'Unknown'}
                         </p>
                       </div>
                       <span className="bg-[var(--soft-green)] text-[var(--primary)] px-3 py-1 rounded-full text-xs font-bold">Active</span>

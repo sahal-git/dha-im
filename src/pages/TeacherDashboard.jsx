@@ -762,24 +762,11 @@ export default function TeacherDashboard({ session }) {
           >
             <Users className="w-5 h-5 mr-3" /> Manage Students
           </button>
-        <button 
-          onClick={() => setActiveTab('assessments')}
-          className={`flex flex-col items-center p-2 rounded-xl min-w-[60px] ${activeTab === 'assessments' ? 'text-[var(--primary)]' : 'text-gray-400'}`}
-        >
-          <FileText className="w-6 h-6 mb-1" />
-          <span className="text-[10px] font-semibold">Exams</span>
-        </button>
           <button 
             onClick={() => setActiveTab('activities')}
             className={`w-full flex items-center px-4 py-3 rounded-2xl font-medium transition-colors ${activeTab === 'activities' ? 'bg-[var(--soft-green)] text-[var(--primary)]' : 'text-gray-600 hover:bg-[var(--bg-cream)] hover:text-[var(--text-main)]'}`}
           >
             <Activity className="w-5 h-5 mr-3" /> Setup Activities
-          </button>
-          <button 
-            onClick={() => setActiveTab('assessments')}
-            className={`w-full flex items-center px-4 py-3 rounded-2xl font-medium transition-colors ${activeTab === 'assessments' ? 'bg-[var(--soft-green)] text-[var(--primary)]' : 'text-gray-600 hover:bg-[var(--bg-cream)] hover:text-[var(--text-main)]'}`}
-          >
-            <FileText className="w-5 h-5 mr-3" /> Exams & Work
           </button>
           <button 
             onClick={() => setActiveTab('assessments')}

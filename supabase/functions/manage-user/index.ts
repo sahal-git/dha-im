@@ -98,11 +98,23 @@ Deno.serve(async (req) => {
     throw new Error("Invalid action");
 
   } catch (error) {
+    // Surface a friendly message for duplicate username/email conflicts
+    const msg: string = error.message ?? '';
+    const isDuplicate =
+      msg.includes('already registered') ||
+      msg.includes('23505') ||
+      msg.toLowerCase().includes('unique') ||
+      msg.toLowerCase().includes('duplicate');
+
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        error: isDuplicate
+          ? 'That username is already taken. Please choose a different one.'
+          : msg,
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400 
+        status: isDuplicate ? 409 : 400,
       }
     );
   }
