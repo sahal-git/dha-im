@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getFunctionErrorMessage } from '../lib/supabase';
 import { Users, UserPlus, LogOut, Edit2, Trash2, X } from 'lucide-react';
 
 export default function AdminDashboard({ session }) {
@@ -36,8 +36,21 @@ export default function AdminDashboard({ session }) {
   }, []);
 
   const fetchData = async () => {
-    const { data: sData } = await supabase.from('students').select('*').order('total_score', { ascending: false });
-    if (sData) setStudentsData(sData);
+    const { data: sData } = await supabase.from('students').select('*').order('full_name');
+    const { data: allScores } = await supabase.from('daily_scores').select('student_id, score');
+    if (sData) {
+      const totals = {};
+      if (allScores) {
+        allScores.forEach(s => {
+          totals[s.student_id] = (totals[s.student_id] || 0) + s.score;
+        });
+      }
+      const studentsWithScore = sData.map(s => ({
+        ...s,
+        total_score: totals[s.id] || 0
+      })).sort((a, b) => b.total_score - a.total_score);
+      setStudentsData(studentsWithScore);
+    }
     
     const { data: aData } = await supabase.from('activities').select('*').order('created_at', { ascending: true });
     if (aData) setActivitiesData(aData);
@@ -95,7 +108,10 @@ export default function AdminDashboard({ session }) {
         body: { email: formattedEmail, password, full_name: fullName }
       });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        const msg = await getFunctionErrorMessage(error, data);
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
 
       setSuccess(`Teacher account for ${email} created successfully!`);
@@ -139,7 +155,10 @@ export default function AdminDashboard({ session }) {
       if (editPassword) body.password = editPassword;
 
       const { data, error } = await supabase.functions.invoke('manage-user', { body });
-      if (error) throw new Error(error.message);
+      if (error) {
+        const msg = await getFunctionErrorMessage(error, data);
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
 
       setEditingTeacher(null);
@@ -157,7 +176,10 @@ export default function AdminDashboard({ session }) {
       const { data, error } = await supabase.functions.invoke('manage-user', { 
         body: { action: 'delete', userId: id, role: 'teacher' } 
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        const msg = await getFunctionErrorMessage(error, data);
+        throw new Error(msg);
+      }
       if (data?.error) throw new Error(data.error);
       fetchTeachers();
     } catch(err) {

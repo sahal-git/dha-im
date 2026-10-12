@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     );
 
     // Get the request body
-    const { email, password, full_name, teacher_id, roll_no } = await req.json();
+    const { email, password, full_name, teacher_id, roll_no, student_id } = await req.json();
 
     if (!email || !password || !full_name || !teacher_id) {
       throw new Error("Missing required fields");
@@ -50,19 +50,30 @@ Deno.serve(async (req) => {
 
     if (profileError) throw profileError;
 
-    // 3. Insert into students table
-    const { error: studentError } = await supabaseClient
-      .from('students')
-      .insert([
-        { 
+    // 3. Insert or update students table
+    if (student_id) {
+      const { error: studentError } = await supabaseClient
+        .from('students')
+        .update({ 
           user_id: userData.user.id, 
-          teacher_id, 
           full_name, 
-          roll_no 
-        }
-      ]);
-
-    if (studentError) throw studentError;
+          roll_no: roll_no || undefined 
+        })
+        .eq('id', student_id);
+      if (studentError) throw studentError;
+    } else {
+      const { error: studentError } = await supabaseClient
+        .from('students')
+        .insert([
+          { 
+            user_id: userData.user.id, 
+            teacher_id, 
+            full_name, 
+            roll_no 
+          }
+        ]);
+      if (studentError) throw studentError;
+    }
 
     return new Response(
       JSON.stringify({ user: userData.user }),
@@ -73,11 +84,22 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
+    const msg: string = error.message ?? '';
+    const isDuplicate =
+      msg.includes('already registered') ||
+      msg.includes('23505') ||
+      msg.toLowerCase().includes('unique') ||
+      msg.toLowerCase().includes('duplicate');
+
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({
+        error: isDuplicate
+          ? 'That username is already taken. Please choose a different one.'
+          : msg,
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400 
+        status: isDuplicate ? 409 : 400,
       }
     );
   }

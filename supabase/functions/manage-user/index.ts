@@ -23,26 +23,35 @@ Deno.serve(async (req) => {
       }
     );
 
-    const { action, userId, email, password, full_name, role } = await req.json();
+    const { action, userId, studentId, email, password, full_name, role } = await req.json();
 
-    if (!userId || !action) {
-      throw new Error("Missing userId or action");
+    if (!action) {
+      throw new Error("Missing action");
+    }
+
+    if (!userId && !studentId) {
+      throw new Error("Missing userId or studentId");
     }
 
     if (action === 'delete') {
-      // 1. Delete user from auth (cascades or we can safely assume it will be cleaned up)
-      // Actually, standard practice: deleting from auth.users cascades to public.profiles 
-      // if ON DELETE CASCADE is set. If not, delete child records first.
-      
-      // Let's explicitly delete child records first just in case
+      // 1. Delete child records from students table if applicable
       if (role === 'student') {
-        await supabaseClient.from('students').delete().eq('user_id', userId);
+        if (studentId) {
+          await supabaseClient.from('students').delete().eq('id', studentId);
+        } else if (userId) {
+          await supabaseClient.from('students').delete().eq('user_id', userId);
+        }
       }
-      await supabaseClient.from('profiles').delete().eq('id', userId);
 
-      // Delete the Auth user
-      const { error: deleteError } = await supabaseClient.auth.admin.deleteUser(userId);
-      if (deleteError) throw deleteError;
+      // 2. Delete user profile and auth account if userId is provided
+      if (userId) {
+        await supabaseClient.from('profiles').delete().eq('id', userId);
+        const { error: deleteError } = await supabaseClient.auth.admin.deleteUser(userId);
+        // Ignore "User not found" errors — the auth record may already be gone
+        if (deleteError && !deleteError.message.includes('not found') && deleteError.status !== 404) {
+          throw deleteError;
+        }
+      }
 
       return new Response(JSON.stringify({ success: true }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 
@@ -50,44 +59,54 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'update') {
-      // 1. Update Auth user (email/password)
-      const updatePayload: any = {};
-      if (email) {
-        updatePayload.email = email;
-        updatePayload.email_confirm = true;
-      }
-      if (password) {
-        updatePayload.password = password;
-      }
-      if (full_name) {
-        updatePayload.user_metadata = { full_name };
-      }
+      // 1. Update Auth user if userId is provided and credentials changed
+      if (userId) {
+        const updatePayload: any = {};
+        if (email) {
+          updatePayload.email = email;
+          updatePayload.email_confirm = true;
+        }
+        if (password) {
+          updatePayload.password = password;
+        }
+        if (full_name) {
+          updatePayload.user_metadata = { full_name };
+        }
 
-      if (Object.keys(updatePayload).length > 0) {
-        const { error: authUpdateError } = await supabaseClient.auth.admin.updateUserById(userId, updatePayload);
-        if (authUpdateError) throw authUpdateError;
-      }
+        if (Object.keys(updatePayload).length > 0) {
+          const { error: authUpdateError } = await supabaseClient.auth.admin.updateUserById(userId, updatePayload);
+          if (authUpdateError) throw authUpdateError;
+        }
 
-      // 2. Update Profiles table
-      if (full_name || email) {
-        const profilePayload: any = {};
-        if (full_name) profilePayload.full_name = full_name;
-        if (email) profilePayload.email = email;
+        // 2. Update Profiles table
+        if (full_name || email) {
+          const profilePayload: any = {};
+          if (full_name) profilePayload.full_name = full_name;
+          if (email) profilePayload.email = email;
 
-        const { error: profileError } = await supabaseClient
-          .from('profiles')
-          .update(profilePayload)
-          .eq('id', userId);
-        if (profileError) throw profileError;
+          const { error: profileError } = await supabaseClient
+            .from('profiles')
+            .update(profilePayload)
+            .eq('id', userId);
+          if (profileError) throw profileError;
+        }
       }
 
       // 3. Update Students table if applicable
       if (role === 'student' && full_name) {
-        const { error: studentError } = await supabaseClient
-          .from('students')
-          .update({ full_name })
-          .eq('user_id', userId);
-        if (studentError) throw studentError;
+        if (studentId) {
+          const { error: studentError } = await supabaseClient
+            .from('students')
+            .update({ full_name })
+            .eq('id', studentId);
+          if (studentError) throw studentError;
+        } else if (userId) {
+          const { error: studentError } = await supabaseClient
+            .from('students')
+            .update({ full_name })
+            .eq('user_id', userId);
+          if (studentError) throw studentError;
+        }
       }
 
       return new Response(JSON.stringify({ success: true }), { 

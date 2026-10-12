@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { BookOpen, LogOut, Users, Activity, CheckSquare, Plus, Trash2, ChevronLeft, ChevronRight, Trophy, X, CheckCircle2, Edit2, FileText, Save } from 'lucide-react';
+import { supabase, getFunctionErrorMessage } from '../lib/supabase';
+import { BookOpen, LogOut, Users, Activity, CheckSquare, Plus, Trash2, ChevronLeft, ChevronRight, Trophy, X, CheckCircle2, Edit2, FileText, Save, Eye, EyeOff } from 'lucide-react';
 
 function ActivityCard({ activity, currentScore, currentRaw, handleScoreChange }) {
   const [expanded, setExpanded] = useState(false);
@@ -242,8 +242,10 @@ export default function TeacherDashboard({ session }) {
   const [editingStudent, setEditingStudent] = useState(null);
   const [editStudentName, setEditStudentName] = useState('');
   const [editStudentUsername, setEditStudentUsername] = useState('');
+  const [originalStudentUsername, setOriginalStudentUsername] = useState('');
   const [editStudentPassword, setEditStudentPassword] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
 
   const [newActivityName, setNewActivityName] = useState('');
   const [newActivityType, setNewActivityType] = useState('single'); // 'single', 'compound'
@@ -477,17 +479,21 @@ export default function TeacherDashboard({ session }) {
         }
       });
 
-      if (error) throw error;
+      if (error || data?.error) {
+        const msg = await getFunctionErrorMessage(error, data);
+        if (msg.includes('already registered') || msg.toLowerCase().includes('already taken')) {
+          alert('That username is already taken. Please choose a different one.');
+        } else {
+          alert('Error creating student: ' + msg);
+        }
+        return;
+      }
 
       setIsAddStudentModalOpen(false);
       fetchStudents();
       alert('Student created successfully!');
     } catch (error) {
-      if (error.message.includes('already registered')) {
-        alert('That username is already taken. Please choose a different one.');
-      } else {
-        alert('Error creating student: ' + error.message);
-      }
+      alert('Error creating student: ' + error.message);
     } finally {
       setIsCreatingStudent(false);
     }
@@ -497,15 +503,25 @@ export default function TeacherDashboard({ session }) {
     setEditingStudent(student);
     setEditStudentName(student.full_name);
     setEditStudentPassword('');
-    setEditStudentUsername('Loading...');
     
-    supabase.from('profiles').select('email').eq('id', student.user_id).single().then(({ data }) => {
-      if (data && data.email) {
-        setEditStudentUsername(data.email.replace('@dha-im.app', ''));
-      } else {
-        setEditStudentUsername('');
-      }
-    });
+    // Only query profiles if user_id is a non-null, non-empty string
+    const userId = student.user_id;
+    if (userId && typeof userId === 'string' && userId.length > 0) {
+      setEditStudentUsername('Loading...');
+      supabase.from('profiles').select('email').eq('id', userId).maybeSingle().then(({ data }) => {
+        if (data && data.email) {
+          const uName = data.email.replace('@dha-im.app', '');
+          setEditStudentUsername(uName);
+          setOriginalStudentUsername(uName);
+        } else {
+          setEditStudentUsername('');
+          setOriginalStudentUsername('');
+        }
+      });
+    } else {
+      setEditStudentUsername('');
+      setOriginalStudentUsername('');
+    }
   };
 
   const handleUpdateStudent = async (e) => {
@@ -513,18 +529,67 @@ export default function TeacherDashboard({ session }) {
     setIsSavingEdit(true);
     try {
       const formattedEmail = editStudentUsername.includes('@') ? editStudentUsername : `${editStudentUsername}@dha-im.app`;
+
+      // 1. If student does not have an auth account yet (legacy student)
+      const hasAuth = editingStudent.user_id && typeof editingStudent.user_id === 'string' && editingStudent.user_id.length > 0;
+      if (!hasAuth) {
+        // If teacher provided a username & password to create login credentials:
+        if (editStudentUsername && editStudentPassword) {
+          const { count } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('teacher_id', session.user.id);
+            
+          const rollNo = editingStudent.roll_no || (count || 0) + 1;
+
+          const { data, error } = await supabase.functions.invoke('create-student', {
+            body: {
+              email: formattedEmail,
+              password: editStudentPassword,
+              full_name: editStudentName,
+              teacher_id: session.user.id,
+              roll_no: rollNo,
+              student_id: editingStudent.id
+            }
+          });
+
+          if (error || data?.error) {
+            const msg = await getFunctionErrorMessage(error, data);
+            throw new Error(msg);
+          }
+        } else {
+          // Simply update student name directly in students table
+          const { error: updateErr } = await supabase
+            .from('students')
+            .update({ full_name: editStudentName })
+            .eq('id', editingStudent.id);
+
+          if (updateErr) throw new Error(updateErr.message);
+        }
+
+        setEditingStudent(null);
+        fetchStudents();
+        return;
+      }
+
+      // 2. If student already has an auth account (user_id exists)
       const body = {
         action: 'update',
         userId: editingStudent.user_id,
+        studentId: editingStudent.id,
         role: 'student'
       };
       if (editStudentName !== editingStudent.full_name) body.full_name = editStudentName;
-      if (editStudentUsername && editStudentUsername !== 'Loading...') body.email = formattedEmail;
+      if (editStudentUsername && editStudentUsername !== 'Loading...' && editStudentUsername !== originalStudentUsername) {
+        body.email = formattedEmail;
+      }
       if (editStudentPassword) body.password = editStudentPassword;
 
       const { data, error } = await supabase.functions.invoke('manage-user', { body });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
+      if (error || data?.error) {
+        const msg = await getFunctionErrorMessage(error, data);
+        throw new Error(msg);
+      }
 
       setEditingStudent(null);
       fetchStudents();
@@ -538,11 +603,19 @@ export default function TeacherDashboard({ session }) {
   const handleDeleteStudent = async (student) => {
     if (!window.confirm('Are you sure you want to delete this student and all their scores?')) return;
     try {
-      const { data, error } = await supabase.functions.invoke('manage-user', { 
-        body: { action: 'delete', userId: student.user_id, role: 'student' } 
-      });
-      if (error) throw new Error(error.message);
-      if (data?.error) throw new Error(data.error);
+      const hasAuth = student.user_id && typeof student.user_id === 'string' && student.user_id.length > 0;
+      if (!hasAuth) {
+        const { error } = await supabase.from('students').delete().eq('id', student.id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { data, error } = await supabase.functions.invoke('manage-user', { 
+          body: { action: 'delete', userId: student.user_id, studentId: student.id, role: 'student' } 
+        });
+        if (error || data?.error) {
+          const msg = await getFunctionErrorMessage(error, data);
+          throw new Error(msg);
+        }
+      }
       fetchStudents();
     } catch(err) {
       alert(err.message);
@@ -1063,17 +1136,17 @@ export default function TeacherDashboard({ session }) {
                         <span className="w-8 text-sm text-gray-400 font-bold">#{student.roll_no || '-'}</span>
                         <span>{student.full_name}</span>
                       </div>
-                      <div className="flex space-x-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <div className="flex space-x-1 lg:opacity-0 lg:group-hover:opacity-100 transition-all">
                         <button 
                           onClick={() => handleEditClick(student)}
-                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                          className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
                           title="Edit Student"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => handleDeleteStudent(student)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                          className="p-2 text-red-400 hover:bg-red-50 rounded-xl transition-colors"
                           title="Delete Student"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -1092,6 +1165,7 @@ export default function TeacherDashboard({ session }) {
                   <div className="flex justify-between items-center p-5 border-b border-[var(--border-soft)] bg-[var(--bg-cream)]/50">
                     <div>
                       <h3 className="font-extrabold text-xl text-[var(--text-main)]">Edit Student</h3>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">{editingStudent.full_name}</p>
                     </div>
                     <button 
                       onClick={() => setEditingStudent(null)}
@@ -1113,26 +1187,72 @@ export default function TeacherDashboard({ session }) {
                           onChange={(e) => setEditStudentName(e.target.value)}
                         />
                       </div>
+
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Username</label>
-                        <input
-                          type="text"
-                          required
-                          className="w-full px-4 py-3 border border-[var(--border-soft)] bg-[var(--bg-cream)] rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                          value={editStudentUsername}
-                          onChange={(e) => setEditStudentUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                        />
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
+                          Username {!editingStudent?.user_id && <span className="normal-case font-normal text-gray-400">(optional — create login)</span>}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            required={!!editingStudent?.user_id}
+                            className="w-full px-4 py-3 border border-[var(--border-soft)] bg-[var(--bg-cream)] rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium pr-10"
+                            value={editStudentUsername}
+                            onChange={(e) => setEditStudentUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                            placeholder={
+                              editStudentUsername === 'Loading...'
+                                ? 'Loading...'
+                                : !editingStudent?.user_id
+                                ? 'Leave blank to update name only'
+                                : ''
+                            }
+                          />
+                          {editingStudent?.user_id && editStudentUsername && editStudentUsername !== 'Loading...' && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">
+                              current
+                            </span>
+                          )}
+                        </div>
                       </div>
+
                       <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">New Password (leave blank to keep current)</label>
-                        <input
-                          type="password"
-                          className="w-full px-4 py-3 border border-[var(--border-soft)] bg-[var(--bg-cream)] rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-                          value={editStudentPassword}
-                          onChange={(e) => setEditStudentPassword(e.target.value)}
-                          placeholder="Enter new password"
-                        />
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider">
+                            Password
+                          </label>
+                          {editingStudent?.user_id && (
+                            <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full">
+                              🔒 current password hidden — leave blank to keep
+                            </span>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <input
+                            type={showEditPassword ? 'text' : 'password'}
+                            required={!editingStudent?.user_id && !!editStudentUsername}
+                            className="w-full px-4 py-3 border border-[var(--border-soft)] bg-[var(--bg-cream)] rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-medium pr-12"
+                            value={editStudentPassword}
+                            onChange={(e) => setEditStudentPassword(e.target.value)}
+                            placeholder={
+                              !editingStudent?.user_id
+                                ? 'Required if creating login'
+                                : 'Enter new password to change'
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowEditPassword(v => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
+                            tabIndex={-1}
+                          >
+                            {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        {!editingStudent?.user_id && !editStudentUsername && (
+                          <p className="text-xs text-gray-400 mt-1">Fill in username + password above to give this student a login.</p>
+                        )}
                       </div>
+
                       <button
                         type="submit"
                         disabled={isSavingEdit}
