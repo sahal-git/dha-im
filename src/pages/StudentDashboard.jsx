@@ -335,7 +335,7 @@ export default function StudentDashboard({ session }) {
   };
 
   const handleSaveScores = async () => {
-    const upsertData = filteredActivities.map(activity => {
+    const upsertData = activities.map(activity => {
       const score = draftScores[activity.id];
       const rawValue = draftRawInputs[activity.id];
       if (score === null || score === undefined) return null;
