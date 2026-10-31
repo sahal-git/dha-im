@@ -569,7 +569,7 @@ export default function StudentDashboard({ session }) {
 
       {/* Sticky Save Action Area */}
       {hasUnsavedChanges && (
-        <div className={`fixed left-0 right-0 bg-white border-t border-[var(--border-soft)] p-4 flex justify-between items-center z-20 animate-fade-in sm:max-w-7xl sm:mx-auto sm:border sm:rounded-t-2xl sm:shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 ${activeTab === 'tasks' ? 'bottom-16 sm:bottom-0' : '-bottom-full sm:bottom-0'}`}>
+        <div className={`fixed left-0 right-0 bg-white border-t border-[var(--border-soft)] p-4 flex justify-between items-center z-40 animate-fade-in sm:max-w-7xl sm:mx-auto sm:border sm:rounded-t-2xl sm:shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] transition-all duration-300 ${activeTab === 'tasks' ? 'bottom-16 sm:bottom-0' : '-bottom-full sm:bottom-0'}`}>
           <p className="text-sm font-medium text-[var(--text-main)]">You have unsaved activities</p>
           <button 
             onClick={handleSaveScores}
